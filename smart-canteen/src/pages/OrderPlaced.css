@@ -1,22 +1,111 @@
-.order-placed-container {
-  text-align: center;
-  padding: 4rem 1rem;
-  height: 100vh;
-  background-color: #f8f6f4;
+.order-placed-page {
+  min-height: 100vh;
+  padding: 1rem;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(155deg, #f8f6f4 0%, #edf2f7 60%, #e5ebf3 100%);
   font-family: "Poppins", sans-serif;
 }
 
-.tick-mark {
-  font-size: 70px;
-  margin-bottom: 20px;
+.order-placed-card {
+  width: min(460px, 100%);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  box-shadow: 0 18px 45px rgba(17, 24, 39, 0.12);
+  padding: 1.5rem;
+  text-align: center;
 }
 
-h2 {
-  color: #333;
-  margin-bottom: 10px;
+.success-icon {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  margin: 0 auto 1rem;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #5b8a2f, #4a7025);
+  box-shadow: 0 10px 24px rgba(91, 138, 47, 0.35);
 }
 
-p {
-  color: #555;
-  font-size: 14px;
+.success-icon span {
+  color: #ffffff;
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.order-placed-card h2 {
+  margin: 0;
+  color: #1f2937;
+  font-size: clamp(1.3rem, 4vw, 1.7rem);
+}
+
+.status-copy {
+  margin: 0.6rem 0 1.2rem;
+  color: #4b5563;
+  font-size: 0.95rem;
+}
+
+.status-details {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fafafa;
+  padding: 0.85rem 1rem;
+}
+
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.94rem;
+  color: #374151;
+}
+
+.status-row + .status-row {
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+  border-top: 1px dashed #d1d5db;
+}
+
+.status-row strong {
+  color: #111827;
+}
+
+.redirect-copy {
+  margin: 1rem 0 0.9rem;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.track-now-btn {
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 0.9rem 1.1rem;
+  font-family: inherit;
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: #ffffff;
+  cursor: pointer;
+  background: linear-gradient(135deg, #f59e0b, #fb923c);
+  box-shadow: 0 9px 20px rgba(245, 158, 11, 0.28);
+  transition: transform 0.2s ease;
+}
+
+.track-now-btn:hover {
+  transform: translateY(-1px);
+}
+
+@media (min-width: 768px) {
+  .order-placed-page {
+    padding: 2rem;
+  }
+
+  .order-placed-card {
+    padding: 2rem;
+  }
 }

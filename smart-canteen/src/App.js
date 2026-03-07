@@ -7,7 +7,10 @@ import Order from "./pages/Order";
 import Pay from "./pages/Pay";
 import OrderPlaced from "./pages/OrderPlaced";
 import OrderTracking from "./pages/OrderTracking";
+import UserProfile from "./pages/UserProfile";
 import AdminCreateUser from "./pages/AdminCreateUser";
+import AnalyticsDashboard from "./pages/AnalyticsDashboard";
+
 import Kitchen from "./pages/Kitchen";
 
 function AppContent({ orderItems, setOrderItems, orders, setOrders, inventory, setInventory, role, setRole }) {
@@ -32,12 +35,11 @@ function AppContent({ orderItems, setOrderItems, orders, setOrders, inventory, s
         <Route path="/pay" element={<Pay orderItems={orderItems} setOrderItems={setOrderItems} orders={orders} setOrders={setOrders} />} />
         <Route path="/order-placed" element={<OrderPlaced />} />
         <Route path="/order-tracking" element={<OrderTracking orders={orders} setOrders={setOrders} />} />
+        <Route path="/profile" element={<UserProfile />} />
 
-        {normalizedRole === "ADMIN" && (
-          <>
-            <Route path="/admin/create-user" element={<AdminCreateUser />} />
-          </>
-        )}
+        
+        <Route path="/admin/create-user" element={<AdminCreateUser />} />
+        <Route path="/admin/analytics" element={<AnalyticsDashboard />} />
 
         {normalizedRole === "KITCHEN_STAFF" && (
           <Route path="/kitchen" element={<Kitchen />} />

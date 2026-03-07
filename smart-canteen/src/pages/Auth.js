@@ -49,7 +49,7 @@ export default function Auth({ onLogin = () => {} }) {
         if (userRole === "KITCHEN_STAFF") {
           navigate("/kitchen");
         } else if (userRole === "ADMIN") {
-          navigate("/admin/create-user");
+          navigate("/admin/analytics");
         } else {
           navigate("/menu");
         }

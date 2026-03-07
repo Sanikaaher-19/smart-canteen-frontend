@@ -1,7 +1,68 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
 import "./OrderTracking.css";
+
+const TRACKING_STEPS = [
+  { key: "PLACED", label: "Order Placed", subLabel: "We received your order" },
+  { key: "ACCEPTED", label: "Order Accepted", subLabel: "Kitchen accepted your order" },
+  { key: "PREPARING", label: "Preparing", subLabel: "Your food is being prepared" },
+  { key: "READY", label: "Ready", subLabel: "Your order is ready for pickup" }
+];
+
+const STATUS_STEP_MAP = {
+  PENDING: 0,
+  PLACED: 0,
+  ACCEPTED: 1,
+  PREPARING: 2,
+  READY: 3,
+  READY_FOR_PICKUP: 3,
+  COMPLETED: 3,
+  CANCELLED: 0
+};
+
+const POLL_INTERVAL_MS = 5000;
+const CANCEL_WINDOW_MS = 5 * 60 * 1000;
+
+const normalizeStatus = (status) => (status || "PLACED").toUpperCase();
+
+const toTrackingMessage = (status) => {
+  switch (status) {
+    case "CANCELLED":
+      return "This order has been cancelled.";
+    case "PLACED":
+    case "PENDING":
+      return "Your order is placed and waiting for kitchen confirmation.";
+    case "ACCEPTED":
+      return "Kitchen accepted your order and will start preparing shortly.";
+    case "PREPARING":
+      return "Your food is currently being prepared.";
+    case "READY":
+    case "READY_FOR_PICKUP":
+      return "Your order is ready for pickup.";
+    case "COMPLETED":
+      return "Order completed successfully.";
+    default:
+      return "Your order status is being updated.";
+  }
+};
+
+const getCanCancelState = (order) => {
+  if (!order?.orderTime) {
+    return { canCancel: false, timeLeft: 0 };
+  }
+
+  const now = new Date();
+  const orderTime = new Date(order.orderTime);
+  const elapsedMs = now - orderTime;
+  const status = normalizeStatus(order.status);
+  const statusAllowsCancel = status === "PENDING" || status === "PREPARING";
+  const withinWindow = elapsedMs <= CANCEL_WINDOW_MS;
+  const canCancel = statusAllowsCancel && withinWindow;
+  const timeLeft = canCancel ? Math.max(0, Math.floor((CANCEL_WINDOW_MS - elapsedMs) / 1000)) : 0;
+
+  return { canCancel, timeLeft };
+};
 
 const OrderTracking = ({ orders, setOrders }) => {
   const navigate = useNavigate();
@@ -10,88 +71,67 @@ const OrderTracking = ({ orders, setOrders }) => {
   const [timeLeft, setTimeLeft] = useState(0);
   const [noOrders, setNoOrders] = useState(false);
 
-  useEffect(() => {
-    const fetchLatestOrder = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const userEmail = localStorage.getItem('userEmail');
+  const fetchLatestOrder = useCallback(async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const userEmail = localStorage.getItem("userEmail");
 
-        console.log('Token:', token ? 'present' : 'missing');
-        console.log('UserEmail:', userEmail);
-
-        if (!token) {
-          alert('Please login to view your orders');
-          navigate('/'); // Redirect to login
-          return;
-        }
-
-        if (!userEmail) {
-          alert('User email not found. Please login again.');
-          navigate('/');
-          return;
-        }
-
-        const res = await api.get('/api/orders/user', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-
-        console.log('Orders response:', res.data);
-
-        // The backend already filters by user, so use the response directly
-        const userOrders = Array.isArray(res.data) ? res.data : [res.data];
-
-        console.log('User orders:', userOrders);
-
-        if (Array.isArray(userOrders) && userOrders.length > 0) {
-          // Sort by orderTime descending to get the latest
-          const sortedOrders = [...userOrders].sort((a, b) => new Date(b.orderTime) - new Date(a.orderTime));
-          let order = sortedOrders[0];
-          // Defensive: if order is array, use its first element
-          if (Array.isArray(order)) order = order[0];
-
-          if (!order || !order.orderTime || !order.status) {
-            console.warn("Fetched order is invalid:", order);
-            setCurrentOrder(null);
-            setCanCancel(false);
-            setTimeLeft(0);
-            setNoOrders(true);
-            return;
-          }
-
-          setCurrentOrder(order);
-
-          // Check if order can be cancelled (within 5 minutes and status PENDING or PREPARING)
-          const now = new Date();
-          const orderTime = new Date(order.orderTime);
-          const diffMinutes = (now - orderTime) / (1000 * 60);
-          const canCancelOrder = diffMinutes <= 5 && (order.status === 'PENDING' || order.status === 'PREPARING');
-          setCanCancel(canCancelOrder);
-
-          // Calculate time left for cancellation (only if can cancel)
-          if (canCancelOrder) {
-            const timeLeftSeconds = Math.max(0, Math.floor((5 * 60 * 1000 - (now - orderTime)) / 1000));
-            setTimeLeft(timeLeftSeconds);
-          } else {
-            setTimeLeft(0);
-          }
-
-          console.log('Order details:', order);
-          console.log('Can cancel:', canCancelOrder, 'Time diff:', diffMinutes, 'Status:', order.status);
-        } else {
-          console.log('No orders found for user:', userEmail);
-          setNoOrders(true);
-        }
-      } catch (err) {
-        console.error('Failed to fetch orders', err);
-        alert('Failed to load order details. Please try logging in again.');
-        navigate('/');
+      if (!token) {
+        alert("Please login to view your orders");
+        navigate("/");
+        return;
       }
-    };
+
+      if (!userEmail) {
+        alert("User email not found. Please login again.");
+        navigate("/");
+        return;
+      }
+
+      const res = await api.get("/api/orders/user", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      const userOrders = Array.isArray(res.data) ? res.data : [res.data];
+
+      if (Array.isArray(userOrders) && userOrders.length > 0) {
+        const sortedOrders = [...userOrders].sort((a, b) => new Date(b.orderTime) - new Date(a.orderTime));
+        let order = sortedOrders[0];
+        if (Array.isArray(order)) order = order[0];
+
+        if (!order || !order.orderTime || !order.status) {
+          setCurrentOrder(null);
+          setCanCancel(false);
+          setTimeLeft(0);
+          setNoOrders(true);
+          return;
+        }
+
+        setNoOrders(false);
+        setCurrentOrder(order);
+
+        const cancelState = getCanCancelState(order);
+        setCanCancel(cancelState.canCancel);
+        setTimeLeft(cancelState.timeLeft);
+      } else {
+        setNoOrders(true);
+      }
+    } catch (err) {
+      console.error("Failed to fetch orders", err);
+      alert("Failed to load order details. Please try logging in again.");
+      navigate("/");
+    }
+  }, [navigate]);
+
+  useEffect(() => {
     fetchLatestOrder();
 
-    // Update timer every second
-    const timer = setInterval(() => {
-      setTimeLeft(prev => {
+    const pollTimer = setInterval(() => {
+      fetchLatestOrder();
+    }, POLL_INTERVAL_MS);
+
+    const countdownTimer = setInterval(() => {
+      setTimeLeft((prev) => {
         if (prev <= 1) {
           setCanCancel(false);
           return 0;
@@ -100,8 +140,11 @@ const OrderTracking = ({ orders, setOrders }) => {
       });
     }, 1000);
 
-    return () => clearInterval(timer);
-  }, [navigate]);
+    return () => {
+      clearInterval(pollTimer);
+      clearInterval(countdownTimer);
+    };
+  }, [fetchLatestOrder]);
 
   const handleCancel = async () => {
     if (!currentOrder || !currentOrder.id) {
@@ -109,151 +152,106 @@ const OrderTracking = ({ orders, setOrders }) => {
       return;
     }
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem("token");
       if (!token) {
-        alert('Please login to cancel order');
+        alert("Please login to cancel order");
         return;
       }
 
       await api.put(`/api/orders/${currentOrder.id}/cancel`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      // Update local order status
+
       setCurrentOrder({ ...currentOrder, status: "CANCELLED" });
       setCanCancel(false);
       alert("Order cancelled successfully!");
-      navigate("/menu"); // Redirect to menu after cancellation
+      navigate("/menu");
     } catch (err) {
-      console.error('Cancel error:', err);
+      console.error("Cancel error:", err);
       alert(err?.response?.data?.message || "Cancellation failed");
     }
   };
 
-  // Debug for troubleshooting
-  console.log('Render: currentOrder', currentOrder, 'canCancel', canCancel, 'timeLeft', timeLeft);
+  const orderStatus = normalizeStatus(currentOrder?.status);
+  const activeStepIndex = STATUS_STEP_MAP[orderStatus] ?? 0;
+  const isReadyOrCompleted =
+    orderStatus === "READY" ||
+    orderStatus === "READY_FOR_PICKUP" ||
+    orderStatus === "COMPLETED";
+
+  const formattedTimeLeft = useMemo(() => {
+    const minutes = Math.floor(timeLeft / 60);
+    const seconds = (timeLeft % 60).toString().padStart(2, "0");
+    return `${minutes}:${seconds}`;
+  }, [timeLeft]);
+
+  const handleDone = () => {
+    if (!isReadyOrCompleted) {
+      navigate("/menu");
+    }
+  };
+
+  const doneButtonText = isReadyOrCompleted ? "Done" : "Back to Menu";
 
   if (noOrders) {
     return (
-      <div className="order-tracking-container" style={{ textAlign: 'center', padding: '50px' }}>
-        <h2>No orders found. Please place an order first.</h2>
-        <button
-          onClick={() => navigate('/menu')}
-          style={{
-            backgroundColor: '#007bff',
-            color: 'white',
-            padding: '10px 20px',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: 'pointer',
-            fontSize: '16px',
-            marginTop: '20px'
-          }}
-        >
-          Go to Menu
-        </button>
+      <div className="order-tracking-shell">
+        <div className="tracking-card no-order-card">
+          <h2>No orders found</h2>
+          <p>Please place an order first to see live tracking updates.</p>
+          <button className="primary-btn" onClick={() => navigate("/menu")}>Go to Menu</button>
+        </div>
       </div>
     );
   }
 
-  if (!currentOrder) return <div>Loading...</div>;
+  if (!currentOrder) {
+    return (
+      <div className="order-tracking-shell">
+        <div className="tracking-card loading-card">Loading your latest order...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="order-tracking-container">
-      <div className="header">
-        <img
-          src="https://cdn-icons-png.flaticon.com/512/3075/3075977.png"
-          alt="Salad Bowl"
-          className="header-icon"
-        />
-        <p className="header-text">
-          {currentOrder.status === "CANCELLED"
-            ? "Order has been cancelled."
-            : `Your food is being prepared. Order will be ready in 17 minutes.`}
-        </p>
-      </div>
-
-      <div className="tracking-timeline">
-        <div className="line"></div>
-
-        <div className="step completed">
-          <div className="dot"></div>
-          <div className="content">
-            <img
-              src="https://cdn-icons-png.flaticon.com/512/1828/1828640.png"
-              alt="Order Placed"
-            />
-            <p>Order Placed</p>
+    <div className="order-tracking-shell">
+      <div className="tracking-card">
+        <div className="tracking-head">
+          <div>
+            <h2>Order Tracking</h2>
+            <p>{toTrackingMessage(orderStatus)}</p>
           </div>
+          <span className={`status-pill status-${orderStatus.toLowerCase()}`}>{orderStatus}</span>
         </div>
 
-        <div className="step completed">
-          <div className="dot"></div>
-          <div className="content">
-            <img
-              src="https://cdn-icons-png.flaticon.com/512/1828/1828643.png"
-              alt="Order Accepted"
-            />
-            <p>Order Accepted</p>
+        <div className="progress-wrap" aria-live="polite">
+          {TRACKING_STEPS.map((step, index) => {
+            const isCompleted = index <= activeStepIndex && orderStatus !== "CANCELLED";
+            const isCurrent = index === activeStepIndex && orderStatus !== "CANCELLED";
+
+            return (
+              <div key={step.key} className={`progress-step ${isCompleted ? "completed" : ""} ${isCurrent ? "current" : ""}`}>
+                <div className="step-bullet">{isCompleted ? "\u2713" : index + 1}</div>
+                <div className="step-content">
+                  <p className="step-title">{step.label}</p>
+                  <p className="step-subtitle">{step.subLabel}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {canCancel && (
+          <div className="cancel-card">
+            <p className="cancel-time">Time left to cancel: {formattedTimeLeft}</p>
+            <p className="cancel-note">You can cancel only within 5 minutes of placing the order.</p>
+            <button onClick={handleCancel} className="cancel-btn">Cancel Order</button>
           </div>
-        </div>
+        )}
 
-        <div className="step">
-          <div className="dot"></div>
-          <div className="content">
-            <img
-              src="https://cdn-icons-png.flaticon.com/512/1046/1046872.png"
-              alt="Preparing Order"
-            />
-            <p>Preparing the order</p>
-          </div>
+        <div className="tracking-actions">
+          <button className="done-btn" onClick={handleDone}>{doneButtonText}</button>
         </div>
-
-        <div className="step">
-          <div className="dot"></div>
-          <div className="content">
-            <img
-              src="https://cdn-icons-png.flaticon.com/512/1791/1791318.png"
-              alt="Ready"
-            />
-            <p>Ready!</p>
-          </div>
-        </div>
-      </div>
-
-      {canCancel && (
-        <div style={{
-          marginTop: 20,
-          padding: "15px",
-          backgroundColor: "#fff3cd",
-          border: "1px solid #ffeaa7",
-          borderRadius: "8px",
-          textAlign: "center"
-        }}>
-          <p style={{ margin: "0 0 10px 0", fontWeight: "bold", color: "#856404" }}>
-            ⏰ Time left to cancel: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
-          </p>
-          <p style={{ margin: "0 0 15px 0", fontSize: "14px", color: "#856404" }}>
-            Note: You can only cancel orders within 5 minutes of placement
-          </p>
-          <button
-            onClick={handleCancel}
-            style={{
-              backgroundColor: "red",
-              color: "white",
-              padding: "10px 20px",
-              border: "none",
-              borderRadius: 5,
-              cursor: "pointer",
-              fontWeight: "bold"
-            }}
-          >
-            Cancel Order
-          </button>
-        </div>
-      )}
-
-      <div style={{ marginTop: 20, display: "flex", justifyContent: "center" }}>
-        <button className="done-btn">Done</button>
       </div>
     </div>
   );
