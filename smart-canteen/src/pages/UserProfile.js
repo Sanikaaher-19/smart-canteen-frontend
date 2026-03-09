@@ -12,7 +12,7 @@ const decodeJwtPayload = (token) => {
     const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
     const decoded = atob(payload);
     return JSON.parse(decoded);
-  } catch (error) {
+  } catch {
     return null;
   }
 };
@@ -42,6 +42,15 @@ const getOrderTotal = (order) => {
 
 const toCurrency = (value) => `Rs ${Number(value || 0).toFixed(0)}`;
 
+function StatItem({ label, value, tone }) {
+  return (
+    <article className={`stat-item ${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </article>
+  );
+}
+
 export default function UserProfile() {
   const navigate = useNavigate();
   const token = localStorage.getItem("token") || "";
@@ -56,7 +65,7 @@ export default function UserProfile() {
     tokenPayload?.name ||
     tokenPayload?.fullName ||
     tokenPayload?.username ||
-    "Campus Bite User";
+    "Canteen Bite User";
 
   const displayEmail = tokenPayload?.email || tokenPayload?.sub || storedEmail || "Not available";
 
@@ -66,17 +75,14 @@ export default function UserProfile() {
         setLoading(false);
         return;
       }
-
       try {
         const res = await api.get("/api/orders/user", {
           headers: { Authorization: `Bearer ${token}` }
         });
-
         const data = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
         const sorted = [...data].sort((a, b) => new Date(b.orderTime) - new Date(a.orderTime));
         setOrders(sorted);
-      } catch (error) {
-        console.error("Failed to load profile orders", error);
+      } catch {
         setOrders([]);
       } finally {
         setLoading(false);
@@ -105,74 +111,86 @@ export default function UserProfile() {
 
   return (
     <div className="profile-page">
-      <section className="profile-layout">
-        <header className="profile-header">
-          <div className="profile-identity">
-            <div className="avatar">{displayName.trim().charAt(0).toUpperCase()}</div>
-            <div>
-              <h1>{displayName}</h1>
-              <p>{displayEmail}</p>
-            </div>
-          </div>
-          <div className="profile-meta">
-            <span>Role: <strong>{storedRole}</strong></span>
-            <span>Status: <strong>{token ? "Signed In" : "Signed Out"}</strong></span>
-          </div>
+      <section className="profile-card">
+        <header className="profile-topbar">
+          <button className="icon-btn" onClick={() => navigate("/menu")} type="button" aria-label="Back">
+            {"<"}
+          </button>
+          <h1>Profile</h1>
+          <button className="icon-btn power" onClick={handleLogout} type="button" aria-label="Logout">
+            {"O"}
+          </button>
         </header>
 
-        <section className="actions-bar">
-          <button className="secondary-btn" onClick={() => navigate("/menu")}>Go to Menu</button>
-          <button className="secondary-btn" onClick={() => navigate("/order-tracking")}>Track Order</button>
-          <button className="danger-btn" onClick={handleLogout}>Logout</button>
+        <section className="identity-row">
+          <div className="avatar">{displayName.trim().charAt(0).toUpperCase()}</div>
+          <div className="identity-copy">
+            <h2>{displayName}</h2>
+            <p>{displayEmail}</p>
+          </div>
+          <div className="identity-tags">
+            <span>{storedRole}</span>
+            <span>{token ? "Signed In" : "Signed Out"}</span>
+          </div>
         </section>
 
-        <section className="stats-strip">
-          <article className="stat-block"><span>Total Orders</span><strong>{stats.totalOrders}</strong></article>
-          <article className="stat-block"><span>Active Orders</span><strong>{stats.activeOrders}</strong></article>
-          <article className="stat-block"><span>Completed</span><strong>{stats.completedOrders}</strong></article>
-          <article className="stat-block"><span>Cancelled</span><strong>{stats.cancelledOrders}</strong></article>
+        <section className="quick-actions">
+          <button type="button" className="chip-btn" onClick={() => navigate("/menu")}>Menu</button>
+          <button type="button" className="chip-btn" onClick={() => navigate("/order-tracking")}>Track Order</button>
+          <button type="button" className="chip-btn danger" onClick={handleLogout}>Logout</button>
         </section>
 
-        <section className="orders-layout">
-          <article className="panel latest-panel">
-            <h2>Latest Order</h2>
-            {loading ? (
-              <p className="section-placeholder">Loading latest order...</p>
-            ) : latestOrder ? (
-              <div className="rows">
-                <div className="row"><span>Status</span><strong>{normalizeStatus(latestOrder.status)}</strong></div>
-                <div className="row"><span>Order Time</span><strong>{formatDateTime(latestOrder.orderTime)}</strong></div>
-                <div className="row"><span>Table Number</span><strong>{latestOrder.tableNumber || "-"}</strong></div>
-                <div className="row"><span>Total</span><strong>{toCurrency(getOrderTotal(latestOrder))}</strong></div>
-              </div>
-            ) : (
-              <p className="section-placeholder">No orders placed yet.</p>
-            )}
-          </article>
+        <section className="stats-grid">
+          <StatItem label="Active" value={stats.activeOrders} tone="orange" />
+          <StatItem label="Total" value={stats.totalOrders} tone="dark" />
+          <StatItem label="Completed" value={stats.completedOrders} tone="green" />
+          <StatItem label="Cancelled" value={stats.cancelledOrders} tone="red" />
+        </section>
 
-          <article className="panel recent-panel">
-            <h2>Recent Orders</h2>
-            {loading ? (
-              <p className="section-placeholder">Loading recent orders...</p>
-            ) : orders.length === 0 ? (
-              <p className="section-placeholder">No order history available.</p>
-            ) : (
-              <div className="rows list-rows">
-                {orders.slice(0, 5).map((order) => (
-                  <div key={order.id || `${order.orderTime}-${order.status}`} className="list-row">
-                    <div>
-                      <p className="order-primary">{formatDateTime(order.orderTime)}</p>
-                      <p className="order-secondary">Table: {order.tableNumber || "-"}</p>
-                    </div>
-                    <div className="order-right">
-                      <span className={`order-status status-${normalizeStatus(order.status).toLowerCase()}`}>{normalizeStatus(order.status)}</span>
-                      <strong>{toCurrency(getOrderTotal(order))}</strong>
-                    </div>
+        <section className="panel">
+          <div className="panel-head">
+            <h3>Latest Order</h3>
+          </div>
+          {loading ? (
+            <p className="empty-row">Loading latest order...</p>
+          ) : latestOrder ? (
+            <div className="order-rows">
+              <div className="order-row"><span>Status</span><strong>{normalizeStatus(latestOrder.status)}</strong></div>
+              <div className="order-row"><span>Order Time</span><strong>{formatDateTime(latestOrder.orderTime)}</strong></div>
+              <div className="order-row"><span>Table Number</span><strong>{latestOrder.tableNumber || "-"}</strong></div>
+              <div className="order-row"><span>Total</span><strong>{toCurrency(getOrderTotal(latestOrder))}</strong></div>
+            </div>
+          ) : (
+            <p className="empty-row">No orders placed yet.</p>
+          )}
+        </section>
+
+        <section className="panel">
+          <div className="panel-head">
+            <h3>Recent Orders</h3>
+          </div>
+          {loading ? (
+            <p className="empty-row">Loading recent orders...</p>
+          ) : orders.length === 0 ? (
+            <p className="empty-row">No order history available.</p>
+          ) : (
+            <div className="order-rows">
+              {orders.slice(0, 5).map((order) => (
+                <div key={order.id || `${order.orderTime}-${order.status}`} className="order-row order-list-row">
+                  <div>
+                    <p className="order-primary">{formatDateTime(order.orderTime)}</p>
+                    <p className="order-secondary">Table: {order.tableNumber || "-"}</p>
                   </div>
-                ))}
-              </div>
-            )}
-          </article>
+                  <div className="order-right">
+                    <span className={`order-status status-${normalizeStatus(order.status).toLowerCase()}`}>
+                      {normalizeStatus(order.status)}
+                    </span>
+                    <strong>{toCurrency(getOrderTotal(order))}</strong>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       </section>
     </div>

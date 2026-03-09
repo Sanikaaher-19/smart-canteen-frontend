@@ -15,6 +15,7 @@ export default function AnalyticsDashboard() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [orders, setOrders] = useState([]);
   const [users, setUsers] = useState([]);
+  const [menuItems, setMenuItems] = useState([]);
   const [revenue, setRevenue] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -59,11 +60,25 @@ export default function AnalyticsDashboard() {
     }
   }, [timeRange, selectedDate]);
 
+  const fetchMenuItems = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await API.get("/api/menu");
+      setMenuItems(res.data?.data || res.data || []);
+    } catch (err) {
+      setError(err?.response?.data?.message || "Failed to fetch menu items");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const refreshActiveTab = useCallback(() => {
     if (activeTab === "orders") fetchOrders();
     else if (activeTab === "users") fetchUsers();
     else if (activeTab === "revenue") fetchRevenue();
-  }, [activeTab, fetchOrders, fetchUsers, fetchRevenue]);
+    else if (activeTab === "menu") fetchMenuItems();
+  }, [activeTab, fetchOrders, fetchUsers, fetchRevenue, fetchMenuItems]);
 
   useEffect(() => {
     refreshActiveTab();
@@ -92,6 +107,18 @@ export default function AnalyticsDashboard() {
       return id.includes(q) || name.includes(q) || email.includes(q) || role.includes(q);
     });
   }, [users, searchQuery]);
+
+  const filteredMenuItems = useMemo(() => {
+    if (!searchQuery.trim()) return menuItems;
+    const q = normalize(searchQuery);
+    return menuItems.filter((item) => {
+      const id = normalize(item.id);
+      const name = normalize(item.name);
+      const category = normalize(item.category);
+      const price = normalize(item.price);
+      return id.includes(q) || name.includes(q) || category.includes(q) || price.includes(q);
+    });
+  }, [menuItems, searchQuery]);
 
   const totalRevenue = useMemo(() => {
     return orders.reduce((sum, order) => {
@@ -131,6 +158,7 @@ export default function AnalyticsDashboard() {
           <div className="header-actions">
             <button className="ghost-btn" onClick={refreshActiveTab}>Refresh</button>
             <button className="create-user-btn" onClick={() => setActiveTab("createUser")}>+ Create User</button>
+            <button className="create-user-btn" onClick={() => setActiveTab("menu")}>+ Add Menu</button>
           </div>
         </div>
 
@@ -154,14 +182,23 @@ export default function AnalyticsDashboard() {
             <button className={`tab-btn ${activeTab === "revenue" ? "active" : ""}`} onClick={() => setActiveTab("revenue")}>
               Revenue
             </button>
+            <button className={`tab-btn ${activeTab === "menu" ? "active" : ""}`} onClick={() => setActiveTab("menu")}>
+              Menu <span className="tab-count">{menuItems.length}</span>
+            </button>
           </div>
 
-          {(activeTab === "orders" || activeTab === "users") && (
+          {(activeTab === "orders" || activeTab === "users" || activeTab === "menu") && (
             <input
               className="search-input"
               type="text"
               value={searchQuery}
-              placeholder={activeTab === "orders" ? "Search order id, email, status, table" : "Search user id, name, email, role"}
+              placeholder={
+                activeTab === "orders"
+                  ? "Search order id, email, status, table"
+                  : activeTab === "users"
+                    ? "Search user id, name, email, role"
+                    : "Search menu id, name, category, price"
+              }
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           )}
@@ -347,6 +384,13 @@ export default function AnalyticsDashboard() {
             }}
           />
         )}
+
+        {activeTab === "menu" && !loading && (
+          <MenuManagementSection
+            menuItems={filteredMenuItems}
+            onSuccess={fetchMenuItems}
+          />
+        )}
       </div>
     </div>
   );
@@ -395,6 +439,154 @@ function AdminCreateUserSection({ onSuccess }) {
           {loading ? "Creating..." : "Create User"}
         </button>
       </form>
+    </div>
+  );
+}
+
+function MenuManagementSection({ menuItems, onSuccess }) {
+  const [form, setForm] = useState({
+    name: "",
+    price: "",
+    category: "",
+    imageUrl: "",
+    description: ""
+  });
+  const [loading, setLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [message, setMessage] = useState(null);
+
+  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage(null);
+
+    const payload = {
+      name: form.name.trim(),
+      price: Number(form.price),
+      category: form.category.trim() || undefined,
+      imageUrl: form.imageUrl.trim() || undefined,
+      description: form.description.trim() || undefined
+    };
+
+    const endpoints = ["/api/admin/menu", "/api/menu"];
+    let lastError = null;
+
+    for (const endpoint of endpoints) {
+      try {
+        await API.post(endpoint, payload);
+        setMessage({ type: "success", text: "Menu item added successfully!" });
+        setForm({ name: "", price: "", category: "", imageUrl: "", description: "" });
+        onSuccess();
+        setLoading(false);
+        return;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    setMessage({
+      type: "error",
+      text: lastError?.response?.data?.message || "Failed to add menu item. Check backend menu create endpoint."
+    });
+    setLoading(false);
+  };
+
+  const handleDelete = async (item) => {
+    const itemId = item?.id;
+    if (!itemId) {
+      setMessage({ type: "error", text: "Cannot remove item without ID." });
+      return;
+    }
+
+    setDeletingId(itemId);
+    setMessage(null);
+
+    const endpoints = [`/api/admin/menu/${itemId}`, `/api/menu/${itemId}`];
+    let lastError = null;
+
+    for (const endpoint of endpoints) {
+      try {
+        await API.delete(endpoint);
+        setMessage({ type: "success", text: "Menu item removed successfully!" });
+        onSuccess();
+        setDeletingId(null);
+        return;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    setMessage({
+      type: "error",
+      text: lastError?.response?.data?.message || "Failed to remove menu item."
+    });
+    setDeletingId(null);
+  };
+
+  return (
+    <div className="create-user-section">
+      <div className="tab-title-row">
+        <h2>Menu Management</h2>
+        <span>Admin Action</span>
+      </div>
+      {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}
+
+      <form onSubmit={handleSubmit} className="create-user-form">
+        <input type="text" name="name" placeholder="Item Name" value={form.name} onChange={handleChange} required />
+        <input type="number" name="price" placeholder="Price" min="0" step="0.01" value={form.price} onChange={handleChange} required />
+        <input type="text" name="category" placeholder="Category (optional)" value={form.category} onChange={handleChange} />
+        <input type="text" name="imageUrl" placeholder="Image URL (optional)" value={form.imageUrl} onChange={handleChange} />
+        <input type="text" name="description" placeholder="Description (optional)" value={form.description} onChange={handleChange} />
+        <button type="submit" className="submit-btn" disabled={loading}>
+          {loading ? "Saving..." : "Add Menu Item"}
+        </button>
+      </form>
+
+      <div className="menu-admin-list">
+        <div className="tab-title-row">
+          <h2>Current Menu</h2>
+          <span>{menuItems.length} items</span>
+        </div>
+        {menuItems.length > 0 ? (
+          <div className="table-wrapper">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Name</th>
+                  <th>Category</th>
+                  <th>Price</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {menuItems.map((item) => (
+                  <tr key={item.id || `${item.name}-${item.price}`}>
+                    <td>{item.id || "-"}</td>
+                    <td>{item.name || "-"}</td>
+                    <td>{item.category || "-"}</td>
+                    <td>{formatCurrency(item.price)}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="danger-btn"
+                        onClick={() => handleDelete(item)}
+                        disabled={deletingId === item.id}
+                      >
+                        {deletingId === item.id ? "Removing..." : "Remove"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="no-data">No menu items found.</p>
+        )}
+      </div>
     </div>
   );
 }

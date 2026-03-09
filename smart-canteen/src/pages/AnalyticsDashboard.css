@@ -64,6 +64,22 @@
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
+.danger-btn {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+  border-radius: 8px;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.danger-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .ghost-btn {
   background: #ffffff;
   color: #1f2937;
@@ -402,6 +418,10 @@
   grid-template-columns: 1fr;
   gap: 0.75rem;
   margin-top: 0.9rem;
+}
+
+.menu-admin-list {
+  margin-top: 1rem;
 }
 
 .submit-btn:disabled {

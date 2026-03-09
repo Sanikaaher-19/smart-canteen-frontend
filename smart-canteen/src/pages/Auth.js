@@ -63,84 +63,110 @@ export default function Auth({ onLogin = () => {} }) {
 
   return (
     <div className="auth-bg">
-      <div className="logo">Campus Bite</div>
-      <div className="auth-box">
-        <div className="tabs">
-          <span
-            className={!isSignup ? "active" : ""}
-            onClick={() => {
-              setIsSignup(false);
-              setError(null);
-              setSuccessMessage("");
-            }}
-          >
-            Log In
-          </span>
-          <span
-            className={isSignup ? "active" : ""}
-            onClick={() => {
-              setIsSignup(true);
-              setError(null);
-              setSuccessMessage("");
-            }}
-          >
-            Sign Up
-          </span>
+      <div className="auth-shell">
+        <div className="stall-hero" aria-hidden="true">
+          <img src="/images/canteenlight.png" alt="" className="stall-image" />
         </div>
 
-        <form onSubmit={handleSubmit}>
-          {isSignup && (
-            <input
-              type="text"
-              name="name"
-              placeholder="Full Name"
-              value={form.name}
-              onChange={handleChange}
-              required
-              autoComplete="name"
-            />
-          )}
+        <div className="auth-box">
+          <div className="auth-card-top">
+            <h2>
+              Canteen Bite<br />
+              <span>Log-in/sign-up</span>
+            </h2>
+          </div>
 
-          <input
-            type="email"
-            name="email"
-            placeholder="Email"
-            value={form.email}
-            onChange={handleChange}
-            required
-            autoComplete="email"
-          />
+          <div className="tabs">
+            <span
+              className={!isSignup ? "active" : ""}
+              onClick={() => {
+                setIsSignup(false);
+                setError(null);
+                setSuccessMessage("");
+              }}
+            >
+              Log In
+            </span>
+            <span
+              className={isSignup ? "active" : ""}
+              onClick={() => {
+                setIsSignup(true);
+                setError(null);
+                setSuccessMessage("");
+              }}
+            >
+              Sign Up
+            </span>
+          </div>
 
-          <input
-            type="password"
-            name="password"
-            placeholder="Password"
-            value={form.password}
-            onChange={handleChange}
-            required
-            autoComplete={isSignup ? "new-password" : "current-password"}
-          />
+          <form onSubmit={handleSubmit}>
+            {isSignup && (
+              <label className="auth-field">
+                <span>Full Name</span>
+                <input
+                  type="text"
+                  name="name"
+                  placeholder="Enter your full name"
+                  value={form.name}
+                  onChange={handleChange}
+                  required
+                  autoComplete="name"
+                />
+              </label>
+            )}
 
-          {!isSignup && (
-            <select name="role" value={form.role} onChange={handleChange} required>
-              <option value="CUSTOMER">Customer</option>
-              <option value="KITCHEN_STAFF">Kitchen Staff</option>
-              <option value="ADMIN">Admin</option>
-            </select>
-          )}
+            <label className="auth-field">
+              <span>Email Address</span>
+              <input
+                type="email"
+                name="email"
+                placeholder="you@example.com"
+                value={form.email}
+                onChange={handleChange}
+                required
+                autoComplete="email"
+              />
+            </label>
 
-          {error && (
-            <div className="auth-error">
-              {typeof error === "string" ? error : JSON.stringify(error, null, 2)}
-            </div>
-          )}
-          {successMessage && <div className="auth-success">{successMessage}</div>}
+            <label className="auth-field">
+              <span>Password</span>
+              <input
+                type="password"
+                name="password"
+                placeholder={isSignup ? "Create a strong password" : "Enter your password"}
+                value={form.password}
+                onChange={handleChange}
+                required
+                autoComplete={isSignup ? "new-password" : "current-password"}
+              />
+            </label>
 
-          <button type="submit" className="auth-btn" disabled={loading}>
-            {loading ? "Please wait..." : isSignup ? "Sign Up" : "Log In"}
-          </button>
-        </form>
+            {!isSignup && (
+              <label className="auth-field">
+                <span>Continue As</span>
+                <select name="role" value={form.role} onChange={handleChange} required>
+                  <option value="CUSTOMER">Customer</option>
+                  <option value="KITCHEN_STAFF">Kitchen Staff</option>
+                  <option value="ADMIN">Admin</option>
+                </select>
+              </label>
+            )}
+
+            {error && (
+              <div className="auth-error">
+                {typeof error === "string" ? error : JSON.stringify(error, null, 2)}
+              </div>
+            )}
+            {successMessage && <div className="auth-success">{successMessage}</div>}
+
+            <button type="submit" className="auth-btn" disabled={loading}>
+              {loading ? "Please wait..." : isSignup ? "Create account" : "Login"}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
 }
+
+
